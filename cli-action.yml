@@ -1,0 +1,21 @@
+name: Test CLI action
+
+on: 
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  cli-action:
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+    - name: Install CLI
+      uses: dopplerhq/cli-action@4819d808ab99e5cde19a0637a16536a4038fad73 # v4.0.1
+    - name: Test CLI
+      run: doppler --version

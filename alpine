@@ -1,0 +1,10 @@
+FROM alpine
+RUN apk add --no-cache tini
+
+# Update OpenSSL to address CVE because `alpine` isn't updated yet
+RUN apk update && apk upgrade --no-cache libcrypto3 libssl3
+
+# dockers_v2 stages artifacts under $TARGETPLATFORM/ in the build context
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/doppler /bin/doppler
+ENTRYPOINT ["/sbin/tini", "--", "/bin/doppler"]
