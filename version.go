@@ -1,5 +1,5 @@
 /*
-Copyright © 2020 Doppler <support@doppler.com>
+Copyright © 2019 Doppler <support@doppler.com>
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,53 +13,100 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package controllers
+package version
 
 import (
-	"time"
-
-	"github.com/DopplerHQ/cli/pkg/http"
-	"github.com/DopplerHQ/cli/pkg/models"
-	"github.com/DopplerHQ/cli/pkg/utils"
-	"github.com/DopplerHQ/cli/pkg/version"
+	"fmt"
+	"strconv"
+	"strings"
 )
 
-// NewVersionAvailable checks whether a CLI version is available that's newer than this CLI
-func NewVersionAvailable(prevVersionCheck models.VersionCheck) (bool, models.VersionCheck, error) {
-	now := time.Now()
-	check, err := http.GetLatestCLIVersion()
-	if err != nil {
-		utils.LogDebug("Unable to fetch latest CLI version")
-		utils.LogDebugError(err)
-		return false, models.VersionCheck{}, err
+// ProgramVersion the current version of this program
+var ProgramVersion = "dev"
+
+// Version semver
+type Version struct {
+	Major int16
+	Minor int16
+	Patch int16
+}
+
+// Unwrap get the original error
+func (v Version) String() string {
+	return fmt.Sprintf("v%d.%d.%d", v.Major, v.Minor, v.Patch)
+}
+
+// IsDevelopment whether the CLI is running in development mode (not a released version)
+func IsDevelopment() bool {
+	return strings.HasPrefix(ProgramVersion, "dev")
+}
+
+// CompareVersions returns -1 if first is greater, 1 if second is greater, and 0 otherwise
+func CompareVersions(a Version, b Version) int {
+	// major version
+	if a.Major > b.Major {
+		return -1
+	}
+	if b.Major > a.Major {
+		return 1
 	}
 
-	versionCheck := models.VersionCheck{CheckedAt: now, LatestVersion: version.Normalize(check.LatestVersion)}
-
-	// skip if available version is unchanged from previous check
-	if versionCheck.LatestVersion == prevVersionCheck.LatestVersion {
-		utils.LogDebug("Previous version check is still latest version")
-		return false, versionCheck, nil
+	// minor version
+	if a.Minor > b.Minor {
+		return -1
+	}
+	if b.Minor > a.Minor {
+		return 1
 	}
 
-	newVersion, err := version.ParseVersion(versionCheck.LatestVersion)
-	if err != nil {
-		utils.LogDebug("Unable to parse new CLI version")
-		return false, models.VersionCheck{}, err
+	// patch version
+	if a.Patch > b.Patch {
+		return -1
+	}
+	if b.Patch > a.Patch {
+		return 1
 	}
 
-	currentVersion, err := version.ParseVersion(version.ProgramVersion)
-	if err != nil {
-		// if current version can't be parsed, consider an update available
-		utils.LogDebug("Unable to parse current CLI version")
-		utils.LogDebugError(err)
-		return true, versionCheck, nil
+	return 0
+}
+
+// ParseVersion from a string
+func ParseVersion(s string) (Version, error) {
+	if strings.HasPrefix(s, "v") {
+		s = s[1:]
+	}
+	parts := strings.Split(s, ".")
+	if len(parts) != 3 {
+		return Version{}, fmt.Errorf("Invalid version %s", s)
 	}
 
-	compare := version.CompareVersions(currentVersion, newVersion)
-	if compare == 1 {
-		return true, versionCheck, nil
+	var v Version
+	var major int64
+	var minor int64
+	var patch int64
+	var err error
+	if major, err = strconv.ParseInt(parts[0], 10, 16); err != nil {
+		return Version{}, fmt.Errorf("Invalid version %s", s)
+	}
+	if minor, err = strconv.ParseInt(parts[1], 10, 16); err != nil {
+		return Version{}, fmt.Errorf("Invalid version %s", s)
+	}
+	if patch, err = strconv.ParseInt(parts[2], 10, 16); err != nil {
+		return Version{}, fmt.Errorf("Invalid version %s", s)
 	}
 
-	return false, versionCheck, nil
+	v.Major = int16(major)
+	v.Minor = int16(minor)
+	v.Patch = int16(patch)
+	return v, nil
+}
+
+// Normalize prepends a 'v' to a version (e.g. 1.0.0 -> v1.0.0)
+func Normalize(version string) string {
+	version = strings.TrimSpace(version)
+	if !strings.HasPrefix(version, "v") {
+		return "v" + version
+	}
+
+	return version
 }
